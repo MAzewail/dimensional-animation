@@ -76,48 +76,10 @@
       left: 28px;
       right: 28px;
       display: flex;
-      justify-content: space-between;
+      justify-content: flex-end;
       align-items: center;
       z-index: 10;
       pointer-events: none;
-    }
-
-    .header-left {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-    }
-
-    .pill-dimension {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      padding: 6px 14px;
-      border-radius: 9999px;
-      background: rgba(56, 189, 248, 0.15);
-      border: 1px solid rgba(56, 189, 248, 0.45);
-      color: var(--accent-cyan);
-      box-shadow: 0 0 20px rgba(56, 189, 248, 0.25);
-      transition: all 0.3s ease;
-    }
-
-    .project-name {
-      font-size: 14px;
-      font-weight: 500;
-      color: var(--text-sub);
-      letter-spacing: 0.02em;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .project-name .dot-separator {
-      width: 4px;
-      height: 4px;
-      border-radius: 50%;
-      background: rgba(255, 255, 255, 0.3);
     }
 
     .header-right {
@@ -203,14 +165,6 @@
 
   <!-- HUD Top Header -->
   <header class="hud-header">
-    <div class="header-left">
-      <span class="pill-dimension" id="hud-dimension-tag">DIMENSION 0D</span>
-      <div class="project-name">
-        <span>Perspective Dimensional Progression</span>
-        <span class="dot-separator"></span>
-        <span>Interactive Visualization</span>
-      </div>
-    </div>
     <div class="header-right">
       <button class="tool-btn" id="btn-sound" title="Toggle audio feedback [M]">
         <span id="sound-icon">🔈</span>
@@ -602,10 +556,6 @@
       if (animate) {
         playChime(stage.audioFreq);
       }
-
-      // Update HUD Dimension tag
-      const hudTag = document.getElementById('hud-dimension-tag');
-      if (hudTag) hudTag.innerText = stage.tag;
 
       // Fade out hint toast on interaction
       const hintToast = document.querySelector('.hint-toast');
