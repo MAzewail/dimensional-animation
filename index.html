@@ -1,0 +1,1295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dimensional Perspective Shift — 0D to 3D Interactive Animation</title>
+  
+  <!-- CDN Libraries: Three.js, OrbitControls, GSAP -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  
+  <!-- Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg: #07090e;
+      --card-bg: rgba(13, 19, 33, 0.78);
+      --card-border: rgba(255, 255, 255, 0.12);
+      --accent-cyan: #38bdf8;
+      --accent-rose: #f43f5e;
+      --accent-amber: #fbbf24;
+      --accent-emerald: #34d399;
+      --accent-purple: #c084fc;
+      --text-main: #f8fafc;
+      --text-sub: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: var(--bg);
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: var(--text-main);
+    }
+
+    #webgl-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      outline: none;
+      z-index: 1;
+      cursor: pointer;
+    }
+
+    /* Ambient cinematic gradient vignette */
+    .vignette {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 2;
+      background: radial-gradient(circle at center, transparent 40%, rgba(7, 9, 14, 0.75) 100%);
+    }
+
+    /* Top HUD Header */
+    .hud-header {
+      position: absolute;
+      top: 24px;
+      left: 28px;
+      right: 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .pill-dimension {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.45);
+      color: var(--accent-cyan);
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.25);
+      transition: all 0.3s ease;
+    }
+
+    .project-name {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-sub);
+      letter-spacing: 0.02em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .project-name .dot-separator {
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      pointer-events: auto;
+    }
+
+    .tool-btn {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-sub);
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 6px 12px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      backdrop-filter: blur(12px);
+      transition: all 0.2s ease;
+    }
+
+    .tool-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.3);
+      color: #fff;
+    }
+
+    .tool-btn.active {
+      border-color: var(--accent-emerald);
+      color: var(--accent-emerald);
+      box-shadow: 0 0 12px rgba(52, 211, 153, 0.25);
+    }
+
+    .key-badge {
+      display: inline-block;
+      padding: 1px 5px;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+      font-size: 10px;
+      color: #fff;
+    }
+
+    /* Bottom Info Card */
+    .info-container {
+      position: absolute;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(720px, calc(100% - 40px));
+      z-index: 10;
+      pointer-events: auto;
+    }
+
+    .info-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 24px 30px;
+      backdrop-filter: blur(24px);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+      transition: border-color 0.3s ease;
+    }
+
+    .step-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .step-dimension {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      color: var(--accent-cyan);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .step-dimension-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-cyan);
+      box-shadow: 0 0 12px var(--accent-cyan);
+      animation: pulseDot 2s infinite ease-in-out;
+    }
+
+    @keyframes pulseDot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.45; transform: scale(0.85); }
+    }
+
+    .step-counter {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--text-sub);
+    }
+
+    .step-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 8px;
+      letter-spacing: -0.015em;
+    }
+
+    .step-description {
+      font-size: 14.5px;
+      line-height: 1.6;
+      color: var(--text-sub);
+      font-weight: 400;
+      margin-bottom: 20px;
+    }
+
+    /* Controls Bar & Timeline */
+    .controls-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 16px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .timeline-pills {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .timeline-dot {
+      height: 32px;
+      padding: 0 12px;
+      border-radius: 9px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-sub);
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .timeline-dot:hover {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: rgba(255, 255, 255, 0.35);
+      color: #ffffff;
+      transform: translateY(-1px);
+    }
+
+    .timeline-dot.active {
+      background: var(--accent-cyan);
+      border-color: var(--accent-cyan);
+      color: #050c18;
+      box-shadow: 0 0 18px rgba(56, 189, 248, 0.55);
+      transform: scale(1.05);
+    }
+
+    .action-buttons {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      padding: 9px 18px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: var(--text-main);
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.16);
+      border-color: rgba(255, 255, 255, 0.3);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      color: #030d17;
+      box-shadow: 0 4px 18px rgba(56, 189, 248, 0.4);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 26px rgba(56, 189, 248, 0.6);
+    }
+
+    .btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+      transform: none !important;
+      box-shadow: none !important;
+    }
+
+    /* Floating annotations / markers */
+    .annotation-label {
+      position: absolute;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 500;
+      padding: 5px 10px;
+      background: rgba(9, 14, 26, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 6px;
+      color: #fff;
+      pointer-events: none;
+      transform: translate(-50%, -100%) translateY(-14px);
+      white-space: nowrap;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      opacity: 0;
+      z-index: 5;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+    }
+
+    .annotation-label.visible {
+      opacity: 1;
+      transform: translate(-50%, -100%) translateY(-18px);
+    }
+
+    .annotation-label::after {
+      content: '';
+      position: absolute;
+      bottom: -5px;
+      left: 50%;
+      transform: translateX(-50%);
+      border-left: 5px solid transparent;
+      border-right: 5px solid transparent;
+      border-top: 5px solid rgba(9, 14, 26, 0.88);
+    }
+
+    #label-end-dot {
+      border-color: rgba(56, 189, 248, 0.6);
+      color: var(--accent-cyan);
+    }
+
+    #label-start-dot {
+      border-color: rgba(244, 63, 94, 0.6);
+      color: var(--accent-rose);
+    }
+
+    #label-plane-surface {
+      border-color: rgba(52, 211, 153, 0.6);
+      color: var(--accent-emerald);
+    }
+
+    /* Subtle help toast on bottom left */
+    .hint-toast {
+      position: absolute;
+      bottom: 28px;
+      left: 28px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-sub);
+      background: rgba(13, 19, 33, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 7px 12px;
+      border-radius: 8px;
+      z-index: 5;
+      pointer-events: none;
+    }
+
+    @media (max-width: 768px) {
+      .hud-header {
+        top: 14px;
+        left: 14px;
+        right: 14px;
+      }
+      .project-name, .hint-toast {
+        display: none;
+      }
+      .info-container {
+        bottom: 14px;
+        width: calc(100% - 28px);
+      }
+      .info-card {
+        padding: 18px 20px;
+      }
+      .step-title {
+        font-size: 19px;
+      }
+      .step-description {
+        font-size: 13px;
+        margin-bottom: 14px;
+      }
+      .timeline-dot span {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- WebGL Canvas -->
+  <canvas id="webgl-canvas"></canvas>
+  <div class="vignette"></div>
+
+  <!-- HUD Top Header -->
+  <header class="hud-header">
+    <div class="header-left">
+      <span class="pill-dimension" id="hud-dimension-tag">DIMENSION 0D</span>
+      <div class="project-name">
+        <span>Perspective Dimensional Progression</span>
+        <span class="dot-separator"></span>
+        <span>Interactive Visualization</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <button class="tool-btn" id="btn-sound" title="Toggle audio feedback [M]">
+        <span id="sound-icon">🔈</span>
+        <span id="sound-text">Audio On</span>
+      </button>
+      <button class="tool-btn" id="btn-autoplay" title="Auto-advance through stages [A]">
+        <span id="autoplay-icon">▶</span>
+        <span id="autoplay-text">Auto Play</span>
+      </button>
+      <button class="tool-btn" id="btn-orbit" title="Free 3D camera orbit [O]">
+        <span id="orbit-icon">🔄</span>
+        <span id="orbit-text">3D Orbit</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Interactive Screen Annotations -->
+  <div id="label-end-dot" class="annotation-label">● End Point (x₂, y₂)</div>
+  <div id="label-start-dot" class="annotation-label">● Start Point (x₁, y₁)</div>
+  <div id="label-plane-surface" class="annotation-label">▱ 2D Planar Surface (8 × 8)</div>
+
+  <!-- Hint Toast -->
+  <div class="hint-toast">
+    <span class="key-badge">CLICK</span> viewport or <span class="key-badge">SPACE</span> to advance
+  </div>
+
+  <!-- Bottom Stage Info Card -->
+  <div class="info-container">
+    <div class="info-card">
+      <div class="step-header">
+        <div class="step-dimension">
+          <span class="step-dimension-dot" id="stage-dot"></span>
+          <span id="stage-tag-text">ZERO DIMENSIONS</span>
+        </div>
+        <div class="step-counter" id="stage-counter">STAGE 1 / 6</div>
+      </div>
+      <h2 class="step-title" id="stage-title">A Solitary Point</h2>
+      <p class="step-description" id="stage-desc">
+        A single glowing point hovering in space. At zero dimensions (0D), it represents pure coordinates—possessing neither length, width, nor depth.
+      </p>
+
+      <div class="controls-row">
+        <!-- Timeline Navigation Stepper -->
+        <div class="timeline-pills">
+          <button class="timeline-dot active" data-step="0" title="Stage 0: 0D Point">0D <span>Point</span></button>
+          <button class="timeline-dot" data-step="1" title="Stage 1: 1D Line">1D <span>Line</span></button>
+          <button class="timeline-dot" data-step="2" title="Stage 2: 2D Grid">2D <span>Grid</span></button>
+          <button class="timeline-dot" data-step="3" title="Stage 3: Vector">PT <span>Start</span></button>
+          <button class="timeline-dot" data-step="4" title="Stage 4: Planar Surface">2D <span>Surface</span></button>
+          <button class="timeline-dot" data-step="5" title="Stage 5: 3D Volume">3D <span>Cube</span></button>
+        </div>
+
+        <!-- Buttons -->
+        <div class="action-buttons">
+          <button class="btn btn-secondary" id="btn-prev" disabled>Back</button>
+          <button class="btn btn-primary" id="btn-next">Next Revelation &rarr;</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- STAGE DEFINITIONS ---
+    const STAGES = [
+      {
+        tag: "DIMENSION 0D",
+        tagText: "ZERO DIMENSIONS (0D)",
+        counter: "STAGE 1 / 6",
+        title: "A Solitary Point",
+        desc: "A single glowing dot hovering in space. At zero dimensions (0D), it represents pure coordinates—possessing neither length, width, nor depth.",
+        // Camera starts centered right on the dot at (4, 0, 0)!
+        camera: { pos: { x: 4, y: 0, z: 8 }, target: { x: 4, y: 0, z: 0 } },
+        labels: { end: true, start: false, plane: false },
+        audioFreq: [523.25, 659.25] // C5, E5
+      },
+      {
+        tag: "DIMENSION 1D",
+        tagText: "ONE DIMENSION (1D)",
+        counter: "STAGE 2 / 6",
+        title: "The Line Unfolds",
+        desc: "Upon click, the perspective pulls back: this dot is actually the end point of a 1D line segment drawn backward through space.",
+        camera: { pos: { x: 0, y: 0, z: 15 }, target: { x: 0, y: 0, z: 0 } },
+        labels: { end: true, start: false, plane: false },
+        audioFreq: [587.33, 783.99] // D5, G5
+      },
+      {
+        tag: "COORDINATE SPACE",
+        tagText: "TWO-DIMENSIONAL FRAME (2D)",
+        counter: "STAGE 3 / 6",
+        title: "Located in a Coordinate Grid",
+        desc: "A 2D coordinate grid emerges across the background, showing that this line occupies definite, measurable coordinates in a 2D reference plane.",
+        camera: { pos: { x: 0, y: 0, z: 17 }, target: { x: 0, y: 0, z: 0 } },
+        labels: { end: true, start: false, plane: false },
+        audioFreq: [659.25, 880.00] // E5, A5
+      },
+      {
+        tag: "DIRECTED VECTOR",
+        tagText: "ENDPOINTS & VECTOR DIRECTION",
+        counter: "STAGE 4 / 6",
+        title: "The Starting Point",
+        desc: "The opposite end illuminates as the Starting Point. Anchored by two definite endpoints (Start and End), the segment establishes direction and length.",
+        camera: { pos: { x: 0, y: 0, z: 17 }, target: { x: 0, y: 0, z: 0 } },
+        labels: { end: true, start: true, plane: false },
+        audioFreq: [698.46, 1046.50] // F5, C6
+      },
+      {
+        tag: "PERSPECTIVE SHIFT",
+        tagText: "EDGE-ON PERSPECTIVE REVELATION",
+        counter: "STAGE 5 / 6",
+        title: "A Planar Surface Seen from an Angle",
+        desc: "The camera swoops up to an angle, revealing a stunning perspective shift: what appeared to be a 1D line was merely the razor-thin edge of an entire 2D planar surface viewed edge-on!",
+        camera: { pos: { x: 13, y: 11, z: 15 }, target: { x: 0, y: 0, z: -4 } },
+        labels: { end: false, start: false, plane: true },
+        audioFreq: [783.99, 1174.66, 1567.98] // G5, D6, G6
+      },
+      {
+        tag: "DIMENSION 3D VOLUME",
+        tagText: "THREE DIMENSIONS (3D VOLUME)",
+        counter: "STAGE 6 / 6",
+        title: "Stack of Planes Forming a 3D Cube",
+        desc: "This plane is not alone—it is one slice of dozens of stacked parallel planes that together assemble an entire 3D volumetric square/cube in space!",
+        camera: { pos: { x: 19, y: 15, z: 21 }, target: { x: 0, y: 0, z: -4 } },
+        labels: { end: false, start: false, plane: false },
+        audioFreq: [523.25, 659.25, 783.99, 1046.50] // C-major chord
+      }
+    ];
+
+    let currentStep = 0;
+    let freeOrbit = false;
+    let soundEnabled = true;
+    let autoPlayInterval = null;
+
+    // --- SYNTHESIZED WEB AUDIO FEEDBACK ---
+    let audioCtx = null;
+    function playChime(frequencies) {
+      if (!soundEnabled) return;
+      try {
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        const now = audioCtx.currentTime;
+        frequencies.forEach((freq, i) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now + i * 0.05);
+
+          gain.gain.setValueAtTime(0.001, now + i * 0.05);
+          gain.gain.exponentialRampToValueAtTime(0.12, now + i * 0.05 + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.05 + 0.55);
+
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+
+          osc.start(now + i * 0.05);
+          osc.stop(now + i * 0.05 + 0.6);
+        });
+      } catch (e) {
+        console.warn("Audio Context init pending user gesture", e);
+      }
+    }
+
+    // --- THREE.JS SCENE SETUP ---
+    const canvas = document.getElementById('webgl-canvas');
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x07090e, 0.022);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(STAGES[0].camera.pos.x, STAGES[0].camera.pos.y, STAGES[0].camera.pos.z);
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
+
+    // Orbit Controls
+    const controls = new THREE.OrbitControls(camera, canvas);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.enabled = false;
+    controls.target.set(STAGES[0].camera.target.x, STAGES[0].camera.target.y, STAGES[0].camera.target.z);
+
+    // --- LIGHTING ---
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
+    scene.add(ambientLight);
+
+    const dirLight1 = new THREE.DirectionalLight(0x38bdf8, 1.4);
+    dirLight1.position.set(16, 22, 16);
+    scene.add(dirLight1);
+
+    const dirLight2 = new THREE.DirectionalLight(0xf43f5e, 0.9);
+    dirLight2.position.set(-16, -12, -12);
+    scene.add(dirLight2);
+
+    const pointLight = new THREE.PointLight(0x38bdf8, 2.5, 45);
+    pointLight.position.set(0, 4, 8);
+    scene.add(pointLight);
+
+    // --- GEOMETRIES & SCENE GRAPH ---
+    const sceneGroup = new THREE.Group();
+    scene.add(sceneGroup);
+
+    const lineLength = 8;
+    const startX = -4;
+    const endX = 4;
+    const planeDepth = 8; // Spans Z from 0 to -8
+
+    // 1. END DOT (Initial 0D Point)
+    const dotGeo = new THREE.SphereGeometry(0.24, 32, 32);
+    const endDotMat = new THREE.MeshStandardMaterial({
+      color: 0x38bdf8,
+      emissive: 0x38bdf8,
+      emissiveIntensity: 1.4,
+      roughness: 0.1,
+      metalness: 0.8
+    });
+    const endDot = new THREE.Mesh(dotGeo, endDotMat);
+    endDot.position.set(endX, 0, 0);
+    sceneGroup.add(endDot);
+
+    // End Dot Halo Ring
+    const haloGeo = new THREE.RingGeometry(0.36, 0.5, 32);
+    const endHaloMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.85
+    });
+    const endHalo = new THREE.Mesh(haloGeo, endHaloMat);
+    endHalo.position.copy(endDot.position);
+    sceneGroup.add(endHalo);
+
+    // 2. START DOT
+    const startDotMat = new THREE.MeshStandardMaterial({
+      color: 0xf43f5e,
+      emissive: 0xf43f5e,
+      emissiveIntensity: 1.4,
+      roughness: 0.1,
+      metalness: 0.8
+    });
+    const startDot = new THREE.Mesh(dotGeo, startDotMat);
+    startDot.position.set(startX, 0, 0);
+    startDot.scale.set(0.001, 0.001, 0.001);
+    startDot.visible = false;
+    sceneGroup.add(startDot);
+
+    // Start Dot Halo Ring
+    const startHaloMat = new THREE.MeshBasicMaterial({
+      color: 0xf43f5e,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.85
+    });
+    const startHalo = new THREE.Mesh(haloGeo, startHaloMat);
+    startHalo.position.copy(startDot.position);
+    startHalo.visible = false;
+    sceneGroup.add(startHalo);
+
+    // 3. THE 1D LINE SEGMENT (Cylinder)
+    // Pivot shifted so it draws backward smoothly from End Dot (+4) to Start Dot (-4)
+    const lineTubeGeo = new THREE.CylinderGeometry(0.075, 0.075, lineLength, 32);
+    lineTubeGeo.rotateZ(Math.PI / 2); // align horizontally
+    lineTubeGeo.translate(-lineLength / 2, 0, 0); // local origin at the right end!
+
+    const lineMat = new THREE.MeshStandardMaterial({
+      color: 0x38bdf8,
+      emissive: 0x0284c7,
+      emissiveIntensity: 0.7,
+      roughness: 0.2,
+      metalness: 0.5,
+      transparent: true,
+      opacity: 0
+    });
+    const lineMesh = new THREE.Mesh(lineTubeGeo, lineMat);
+    lineMesh.position.set(endX, 0, 0); // anchored at End Dot!
+    lineMesh.scale.set(0.001, 1, 1);
+    sceneGroup.add(lineMesh);
+
+    // Directional Energy Flow Particles along the Line
+    const particleCount = 20;
+    const particleGeo = new THREE.BufferGeometry();
+    const particlePositions = new Float32Array(particleCount * 3);
+    for (let i = 0; i < particleCount; i++) {
+      const t = i / particleCount;
+      particlePositions[i * 3] = startX + t * lineLength;
+      particlePositions[i * 3 + 1] = 0;
+      particlePositions[i * 3 + 2] = 0;
+    }
+    particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+    const particleMat = new THREE.PointsMaterial({
+      color: 0xffffff,
+      size: 0.15,
+      transparent: true,
+      opacity: 0
+    });
+    const lineParticles = new THREE.Points(particleGeo, particleMat);
+    sceneGroup.add(lineParticles);
+
+    // 4. COORDINATE GRID (Stage 2)
+    const gridGroup = new THREE.Group();
+    gridGroup.visible = false;
+
+    // XY Coordinate Plane Grid Helper
+    const gridHelper = new THREE.GridHelper(16, 16, 0x38bdf8, 0x1e293b);
+    gridHelper.rotation.x = Math.PI / 2; // Facing XY plane
+    gridHelper.material.transparent = true;
+    gridHelper.material.opacity = 0;
+    gridGroup.add(gridHelper);
+
+    // Axes
+    const axisMatX = new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0 });
+    const axisMatY = new THREE.LineBasicMaterial({ color: 0x10b981, transparent: true, opacity: 0 });
+    const axisMatZ = new THREE.LineBasicMaterial({ color: 0xa855f7, transparent: true, opacity: 0 });
+
+    const xAxis = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-9, 0, 0), new THREE.Vector3(9, 0, 0)]), axisMatX);
+    const yAxis = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, -7, 0), new THREE.Vector3(0, 7, 0)]), axisMatY);
+    const zAxis = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, -8), new THREE.Vector3(0, 0, 8)]), axisMatZ);
+    gridGroup.add(xAxis, yAxis, zAxis);
+    sceneGroup.add(gridGroup);
+
+    // 5. THE PLANAR SURFACE (Stage 4)
+    // Geometry lies in X-Z plane (horizontal), extending Z from 0 to -8.
+    // Viewed edge-on from (0, 0, +Z), it collapses exactly onto the line from (-4, 0, 0) to (+4, 0, 0)!
+    const singlePlaneGeo = new THREE.PlaneGeometry(lineLength, planeDepth, 16, 16);
+    singlePlaneGeo.rotateX(Math.PI / 2);
+    singlePlaneGeo.translate(0, 0, -planeDepth / 2); // front edge is at Z = 0!
+
+    const planeMat = new THREE.MeshPhysicalMaterial({
+      color: 0x0ea5e9,
+      emissive: 0x0369a1,
+      emissiveIntensity: 0.35,
+      metalness: 0.2,
+      roughness: 0.1,
+      transmission: 0.65,
+      transparent: true,
+      opacity: 0,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+
+    const mainPlane = new THREE.Mesh(singlePlaneGeo, planeMat);
+    mainPlane.visible = false;
+    sceneGroup.add(mainPlane);
+
+    // Contour edges for the plane
+    const planeEdges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(singlePlaneGeo),
+      new THREE.LineBasicMaterial({ color: 0x7dd3fc, transparent: true, opacity: 0, linewidth: 2 })
+    );
+    mainPlane.add(planeEdges);
+
+    // Internal grid overlay on the plane
+    const planeGrid = new THREE.GridHelper(lineLength, 8, 0x38bdf8, 0x0369a1);
+    planeGrid.position.set(0, 0.01, -planeDepth / 2);
+    planeGrid.material.transparent = true;
+    planeGrid.material.opacity = 0;
+    mainPlane.add(planeGrid);
+
+    // 6. 3D ARRAY OF PLANES FORMING A CUBE (Stage 5)
+    const planesArrayGroup = new THREE.Group();
+    planesArrayGroup.visible = false;
+    sceneGroup.add(planesArrayGroup);
+
+    const STACK_COUNT = 15;
+    const stackHeight = 8; // Forms an 8 x 8 x 8 Cube
+    const planeMeshes = [];
+
+    for (let i = 0; i < STACK_COUNT; i++) {
+      const t = (i / (STACK_COUNT - 1)) - 0.5;
+      const targetY = t * stackHeight;
+
+      const stackPlaneMat = new THREE.MeshPhysicalMaterial({
+        color: 0x38bdf8,
+        emissive: 0x0284c7,
+        emissiveIntensity: 0.25,
+        roughness: 0.2,
+        metalness: 0.3,
+        transmission: 0.72,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+
+      const pMesh = new THREE.Mesh(singlePlaneGeo, stackPlaneMat);
+      pMesh.position.set(0, 0, 0);
+
+      const pEdges = new THREE.LineSegments(
+        new THREE.EdgesGeometry(singlePlaneGeo),
+        new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0 })
+      );
+      pMesh.add(pEdges);
+
+      planesArrayGroup.add(pMesh);
+      planeMeshes.push({ mesh: pMesh, targetY: targetY, edges: pEdges });
+    }
+
+    // Outer bounding cube wireframe to accent the 3D volume
+    const cubeBoxGeo = new THREE.BoxGeometry(lineLength, stackHeight, planeDepth);
+    cubeBoxGeo.translate(0, 0, -planeDepth / 2);
+    const cubeEdges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(cubeBoxGeo),
+      new THREE.LineBasicMaterial({ color: 0xf43f5e, transparent: true, opacity: 0, linewidth: 2 })
+    );
+    planesArrayGroup.add(cubeEdges);
+
+    // Virtual point on plane for annotation
+    const planeCenterMarker = new THREE.Object3D();
+    planeCenterMarker.position.set(0, 0, -planeDepth / 2);
+    sceneGroup.add(planeCenterMarker);
+
+
+    // --- ANIMATION ENGINE ---
+    let isTransitioning = false;
+
+    function applyStage(stepIndex, animate = true) {
+      if (isTransitioning && animate) return;
+      isTransitioning = true;
+
+      currentStep = stepIndex;
+      const stage = STAGES[currentStep];
+
+      // Play audio chime
+      if (animate) {
+        playChime(stage.audioFreq);
+      }
+
+      // Update UI elements
+      document.getElementById('hud-dimension-tag').innerText = stage.tag;
+      document.getElementById('stage-tag-text').innerText = stage.tagText;
+      document.getElementById('stage-counter').innerText = stage.counter;
+      document.getElementById('stage-title').innerText = stage.title;
+      document.getElementById('stage-desc').innerText = stage.desc;
+
+      // Update Timeline pills
+      document.querySelectorAll('.timeline-dot').forEach((dot, idx) => {
+        dot.classList.toggle('active', idx === currentStep);
+      });
+
+      // Update Buttons
+      document.getElementById('btn-prev').disabled = (currentStep === 0);
+      const nextBtn = document.getElementById('btn-next');
+      if (currentStep === STAGES.length - 1) {
+        nextBtn.innerHTML = '↺ Replay from Start';
+      } else {
+        nextBtn.innerHTML = 'Next Revelation &rarr;';
+      }
+
+      // Camera tween
+      const duration = animate ? 1.6 : 0;
+      const ease = "power3.inOut";
+
+      if (!freeOrbit || !animate) {
+        gsap.to(camera.position, {
+          x: stage.camera.pos.x,
+          y: stage.camera.pos.y,
+          z: stage.camera.pos.z,
+          duration: duration,
+          ease: ease,
+          onUpdate: () => controls.update()
+        });
+        gsap.to(controls.target, {
+          x: stage.camera.target.x,
+          y: stage.camera.target.y,
+          z: stage.camera.target.z,
+          duration: duration,
+          ease: ease,
+          onUpdate: () => controls.update()
+        });
+      }
+
+      const tl = gsap.timeline({
+        onComplete: () => {
+          isTransitioning = false;
+        }
+      });
+
+      // --- STAGE 0: Point (0D) ---
+      if (currentStep === 0) {
+        // End Dot visible and prominent
+        tl.to(endDot.scale, { x: 1, y: 1, z: 1, duration: 0.7, ease: "back.out(1.7)" }, 0);
+        tl.to(endHalo.scale, { x: 1, y: 1, z: 1, duration: 0.7 }, 0);
+        tl.to(endHaloMat, { opacity: 0.85, duration: 0.4 }, 0);
+
+        // Hide Line
+        tl.to(lineMesh.scale, { x: 0.001, duration: 0.6 }, 0);
+        tl.to(lineMat, { opacity: 0, duration: 0.4 }, 0);
+        tl.to(particleMat, { opacity: 0, duration: 0.3 }, 0);
+
+        // Hide Start Dot
+        tl.to(startDot.scale, { x: 0.001, y: 0.001, z: 0.001, duration: 0.4 }, 0);
+        tl.to(startHaloMat, { opacity: 0, duration: 0.3 }, 0);
+        tl.set([startDot, startHalo], { visible: false }, 0.4);
+
+        // Hide Grid
+        tl.to([gridHelper.material, axisMatX, axisMatY, axisMatZ], { opacity: 0, duration: 0.4 }, 0);
+        tl.set(gridGroup, { visible: false }, 0.4);
+
+        // Hide Planes
+        tl.to([planeMat, planeEdges.material, planeGrid.material], { opacity: 0, duration: 0.4 }, 0);
+        tl.set(mainPlane, { visible: false }, 0.4);
+        tl.set(planesArrayGroup, { visible: false }, 0.4);
+      }
+
+      // --- STAGE 1: Line (1D) ---
+      else if (currentStep === 1) {
+        // Reveal Line drawing backward from endDot
+        lineMesh.visible = true;
+        tl.to(lineMat, { opacity: 1, duration: 0.4 }, 0);
+        tl.to(lineMesh.scale, { x: 1, duration: 1.2, ease: "power2.out" }, 0);
+
+        // Hide Start Dot (reserved for stage 3)
+        tl.to(startDot.scale, { x: 0.001, y: 0.001, z: 0.001, duration: 0.4 }, 0);
+        tl.set([startDot, startHalo], { visible: false }, 0.4);
+        tl.to(particleMat, { opacity: 0, duration: 0.3 }, 0);
+
+        // Hide Grid
+        tl.to([gridHelper.material, axisMatX, axisMatY, axisMatZ], { opacity: 0, duration: 0.4 }, 0);
+        tl.set(gridGroup, { visible: false }, 0.4);
+
+        // Hide Planes
+        tl.to([planeMat, planeEdges.material, planeGrid.material], { opacity: 0, duration: 0.4 }, 0);
+        tl.set(mainPlane, { visible: false }, 0.4);
+        tl.set(planesArrayGroup, { visible: false }, 0.4);
+      }
+
+      // --- STAGE 2: 2D Grid ---
+      else if (currentStep === 2) {
+        // Ensure line is fully visible
+        lineMesh.visible = true;
+        tl.to(lineMesh.scale, { x: 1, duration: 0.4 }, 0);
+        tl.to(lineMat, { opacity: 1, duration: 0.3 }, 0);
+
+        // Materialize Grid
+        gridGroup.visible = true;
+        tl.to(gridHelper.material, { opacity: 0.45, duration: 1.0, ease: "power2.out" }, 0.2);
+        tl.to(axisMatX, { opacity: 0.85, duration: 0.8 }, 0.3);
+        tl.to(axisMatY, { opacity: 0.85, duration: 0.8 }, 0.3);
+        tl.to(axisMatZ, { opacity: 0.25, duration: 0.8 }, 0.3);
+
+        // Keep Start Dot hidden
+        tl.to(startDot.scale, { x: 0.001, y: 0.001, z: 0.001, duration: 0.3 }, 0);
+        tl.set([startDot, startHalo], { visible: false }, 0.3);
+        tl.to(particleMat, { opacity: 0, duration: 0.3 }, 0);
+
+        // Hide Planes
+        tl.to([planeMat, planeEdges.material, planeGrid.material], { opacity: 0, duration: 0.4 }, 0);
+        tl.set(mainPlane, { visible: false }, 0.4);
+        tl.set(planesArrayGroup, { visible: false }, 0.4);
+      }
+
+      // --- STAGE 3: Start Point & Vector ---
+      else if (currentStep === 3) {
+        gridGroup.visible = true;
+        tl.to(gridHelper.material, { opacity: 0.45, duration: 0.4 }, 0);
+
+        // Reveal Start Point with ripple expansion
+        startDot.visible = true;
+        startHalo.visible = true;
+        tl.to(startDot.scale, { x: 1.15, y: 1.15, z: 1.15, duration: 0.7, ease: "back.out(2)" }, 0.1);
+        tl.to(startHaloMat, { opacity: 0.9, duration: 0.5 }, 0.2);
+        tl.to(startHalo.scale, { x: 1.5, y: 1.5, z: 1.5, duration: 0.7, ease: "power2.out" }, 0.2);
+
+        // Particle pulse along line
+        tl.to(particleMat, { opacity: 0.75, duration: 0.6 }, 0.3);
+
+        // Hide Planes
+        tl.to([planeMat, planeEdges.material, planeGrid.material], { opacity: 0, duration: 0.4 }, 0);
+        tl.set(mainPlane, { visible: false }, 0.4);
+        tl.set(planesArrayGroup, { visible: false }, 0.4);
+      }
+
+      // --- STAGE 4: Planar Surface (Perspective Shift) ---
+      else if (currentStep === 4) {
+        mainPlane.visible = true;
+        tl.to(planeMat, { opacity: 0.58, duration: 1.4, ease: "power2.out" }, 0.3);
+        tl.to(planeEdges.material, { opacity: 0.9, duration: 1.2, ease: "power2.out" }, 0.3);
+        tl.to(planeGrid.material, { opacity: 0.65, duration: 1.2, ease: "power2.out" }, 0.4);
+
+        // Subdue 2D background grid to highlight the tilted 3D plane
+        tl.to(gridHelper.material, { opacity: 0.15, duration: 0.8 }, 0);
+        tl.to(axisMatZ, { opacity: 0.65, duration: 0.8 }, 0);
+
+        // Collapse/hide 3D array if coming backward from stage 5
+        tl.to(planeMeshes.map(p => p.mesh.position), { y: 0, duration: 0.8, ease: "power2.in" }, 0);
+        tl.to(planeMeshes.map(p => p.mesh.material), { opacity: 0, duration: 0.6 }, 0);
+        tl.to(planeMeshes.map(p => p.edges.material), { opacity: 0, duration: 0.6 }, 0);
+        tl.to(cubeEdges.material, { opacity: 0, duration: 0.5 }, 0);
+        tl.set(planesArrayGroup, { visible: false }, 0.8);
+      }
+
+      // --- STAGE 5: 3D Volume (Stack of Planes Forming a Cube) ---
+      else if (currentStep === 5) {
+        mainPlane.visible = true;
+        planesArrayGroup.visible = true;
+
+        // Cascade separation: planes slide along Y axis to form 3D cube
+        planeMeshes.forEach((item, idx) => {
+          tl.to(item.mesh.position, {
+            y: item.targetY,
+            duration: 1.4,
+            ease: "power3.out"
+          }, 0.2 + idx * 0.04);
+
+          tl.to(item.mesh.material, {
+            opacity: 0.38,
+            duration: 1.0,
+            ease: "power2.out"
+          }, 0.2 + idx * 0.03);
+
+          tl.to(item.edges.material, {
+            opacity: 0.75,
+            duration: 1.0,
+            ease: "power2.out"
+          }, 0.2 + idx * 0.03);
+        });
+
+        // Illuminate outer bounding cube wireframe
+        tl.to(cubeEdges.material, {
+          opacity: 0.88,
+          duration: 1.4,
+          ease: "power2.out"
+        }, 0.8);
+
+        // Soften background grid
+        tl.to(gridHelper.material, { opacity: 0.08, duration: 0.6 }, 0);
+      }
+    }
+
+    // --- USER INTERACTIONS & NAVIGATION ---
+    function nextStep() {
+      if (currentStep < STAGES.length - 1) {
+        applyStage(currentStep + 1);
+      } else {
+        applyStage(0); // Loop back
+      }
+    }
+
+    function prevStep() {
+      if (currentStep > 0) {
+        applyStage(currentStep - 1);
+      }
+    }
+
+    document.getElementById('btn-next').addEventListener('click', (e) => {
+      e.stopPropagation();
+      nextStep();
+    });
+
+    document.getElementById('btn-prev').addEventListener('click', (e) => {
+      e.stopPropagation();
+      prevStep();
+    });
+
+    // Timeline pill clicks
+    document.querySelectorAll('.timeline-dot').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const targetStep = parseInt(btn.getAttribute('data-step'));
+        applyStage(targetStep);
+      });
+    });
+
+    // Click canvas to advance
+    canvas.addEventListener('click', () => {
+      if (!freeOrbit) {
+        nextStep();
+      }
+    });
+
+    // Keyboard Shortcuts
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' || e.code === 'ArrowRight') {
+        e.preventDefault();
+        nextStep();
+      } else if (e.code === 'ArrowLeft') {
+        e.preventDefault();
+        prevStep();
+      } else if (e.code === 'KeyR') {
+        applyStage(0);
+      } else if (e.code === 'KeyO') {
+        toggleOrbit();
+      } else if (e.code === 'KeyA') {
+        toggleAutoPlay();
+      } else if (e.code === 'KeyM') {
+        toggleSound();
+      }
+    });
+
+    // Free Orbit Controls
+    const btnOrbit = document.getElementById('btn-orbit');
+    function setFreeOrbit(active) {
+      freeOrbit = active;
+      controls.enabled = active;
+      btnOrbit.classList.toggle('active', active);
+      document.getElementById('orbit-text').innerText = active ? "Orbit On" : "3D Orbit";
+    }
+
+    function toggleOrbit() {
+      setFreeOrbit(!freeOrbit);
+    }
+    btnOrbit.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleOrbit();
+    });
+
+    // Sound Toggle
+    const btnSound = document.getElementById('btn-sound');
+    function toggleSound() {
+      soundEnabled = !soundEnabled;
+      btnSound.classList.toggle('active', soundEnabled);
+      document.getElementById('sound-icon').innerText = soundEnabled ? "🔊" : "🔇";
+      document.getElementById('sound-text').innerText = soundEnabled ? "Audio On" : "Audio Off";
+    }
+    btnSound.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleSound();
+    });
+
+    // Auto Play Mode
+    const btnAutoplay = document.getElementById('btn-autoplay');
+    function toggleAutoPlay() {
+      if (autoPlayInterval) {
+        clearInterval(autoPlayInterval);
+        autoPlayInterval = null;
+        btnAutoplay.classList.remove('active');
+        document.getElementById('autoplay-icon').innerText = "▶";
+        document.getElementById('autoplay-text').innerText = "Auto Play";
+      } else {
+        btnAutoplay.classList.add('active');
+        document.getElementById('autoplay-icon').innerText = "⏸";
+        document.getElementById('autoplay-text').innerText = "Pause";
+        nextStep();
+        autoPlayInterval = setInterval(() => {
+          nextStep();
+        }, 3400);
+      }
+    }
+    btnAutoplay.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleAutoPlay();
+    });
+
+    // --- SCREEN ANNOTATIONS ---
+    const labelEnd = document.getElementById('label-end-dot');
+    const labelStart = document.getElementById('label-start-dot');
+    const labelPlane = document.getElementById('label-plane-surface');
+
+    function updateAnnotation(targetObj, domElement, isVisible) {
+      if (!isVisible) {
+        domElement.classList.remove('visible');
+        return;
+      }
+      const vector = new THREE.Vector3();
+      targetObj.getWorldPosition(vector);
+      vector.project(camera);
+
+      // Check if behind camera
+      if (vector.z > 1) {
+        domElement.classList.remove('visible');
+        return;
+      }
+
+      const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+      const y = (-(vector.y * 0.5) + 0.5) * window.innerHeight;
+
+      domElement.style.left = `${x}px`;
+      domElement.style.top = `${y}px`;
+      domElement.classList.add('visible');
+    }
+
+    // --- WINDOW RESIZE ---
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // --- RENDER & ANIMATION LOOP ---
+    const clock = new THREE.Clock();
+
+    function renderLoop() {
+      requestAnimationFrame(renderLoop);
+
+      const elapsedTime = clock.getElapsedTime();
+
+      // Subtle breathing pulse on halo rings
+      endHalo.rotation.z = elapsedTime * 0.6;
+      startHalo.rotation.z = -elapsedTime * 0.6;
+
+      const pulseFactor = 1 + Math.sin(elapsedTime * 3) * 0.05;
+      endDot.scale.set(pulseFactor, pulseFactor, pulseFactor);
+
+      if (startDot.visible) {
+        startDot.scale.set(pulseFactor * 1.1, pulseFactor * 1.1, pulseFactor * 1.1);
+      }
+
+      // Energy flow particles animation (Stage 3)
+      if (currentStep === 3 && particleMat.opacity > 0) {
+        const positions = particleGeo.attributes.position.array;
+        for (let i = 0; i < particleCount; i++) {
+          let x = positions[i * 3];
+          x += 0.08;
+          if (x > endX) x = startX;
+          positions[i * 3] = x;
+        }
+        particleGeo.attributes.position.needsUpdate = true;
+      }
+
+      // Gentle auto-rotation when at 3D volume stage
+      if (currentStep === 5 && !freeOrbit) {
+        sceneGroup.rotation.y = Math.sin(elapsedTime * 0.35) * 0.22;
+      } else if (!freeOrbit) {
+        sceneGroup.rotation.y = 0;
+      }
+
+      controls.update();
+
+      // Update screen coordinate labels
+      const stage = STAGES[currentStep];
+      updateAnnotation(endDot, labelEnd, stage.labels.end && !freeOrbit);
+      updateAnnotation(startDot, labelStart, stage.labels.start && !freeOrbit);
+      updateAnnotation(planeCenterMarker, labelPlane, stage.labels.plane && !freeOrbit);
+
+      renderer.render(scene, camera);
+    }
+
+    // Support direct step jumping via URL (?step=0..5)
+    const urlParams = new URLSearchParams(window.location.search);
+    const initialStep = Math.min(Math.max(parseInt(urlParams.get('step') || '0'), 0), 5);
+
+    applyStage(initialStep, false);
+    renderLoop();
+  </script>
+</body>
+</html>
