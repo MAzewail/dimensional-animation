@@ -1,6 +1,10 @@
 # Perspective Dimensional Shift: 0D Point to 3D Volume Animation
 
+[![Live Demo](https://img.shields.io/badge/Demo-Live%20on%20GitHub%20Pages-38bdf8?style=for-the-badge&logo=github)](https://mazewail.github.io/dimensional-animation/)
+
 An interactive, cinematic WebGL/Three.js 3D animation exploring geometric dimensional emergence and perspective revelation.
+
+🌐 **Live URL:** [https://mazewail.github.io/dimensional-animation/](https://mazewail.github.io/dimensional-animation/)
 
 ## The Progression Narrative
 
