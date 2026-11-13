@@ -196,10 +196,18 @@
       position: absolute;
       bottom: 28px;
       left: 50%;
-      transform: translateX(-50%);
+      transform: translate(-50%, 16px);
       width: min(620px, calc(100% - 36px));
       z-index: 10;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .math-hud-container.visible {
+      opacity: 1;
       pointer-events: auto;
+      transform: translate(-50%, 0);
     }
 
     .math-hud-card {
@@ -296,6 +304,10 @@
   <!-- HUD Top Header -->
   <header class="hud-header">
     <div class="header-right">
+      <button class="tool-btn" id="btn-math" title="Toggle equations HUD [E]">
+        <span id="math-btn-icon">∑</span>
+        <span id="math-btn-text">Equations</span>
+      </button>
       <button class="tool-btn" id="btn-sound" title="Toggle audio feedback [M]">
         <span id="sound-icon">🔈</span>
         <span id="sound-text">Audio On</span>
@@ -941,6 +953,8 @@
         prevStep();
       } else if (e.code === 'KeyR') {
         applyStage(0);
+      } else if (e.code === 'KeyE') {
+        toggleEquations();
       } else if (e.code === 'KeyO') {
         toggleOrbit();
       } else if (e.code === 'KeyA') {
@@ -948,6 +962,28 @@
       } else if (e.code === 'KeyM') {
         toggleSound();
       }
+    });
+
+    // Equation Mode Toggle (Default: OFF)
+    let showEquations = false;
+    const btnMath = document.getElementById('btn-math');
+    const mathHudContainer = document.querySelector('.math-hud-container');
+
+    function setEquationsVisible(visible) {
+      showEquations = visible;
+      btnMath.classList.toggle('active', visible);
+      mathHudContainer.classList.toggle('visible', visible);
+      document.getElementById('math-btn-text').innerText = visible ? "Equations On" : "Equations";
+      updateCoordTag();
+    }
+
+    function toggleEquations() {
+      setEquationsVisible(!showEquations);
+    }
+
+    btnMath.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleEquations();
     });
 
     // Orbit Controls Toggle
@@ -1007,7 +1043,7 @@
     // --- SCREEN ANCHORED (x, y) COORDINATE TAG ---
     function updateCoordTag() {
       const stage = STAGES[currentStep];
-      if (!stage.showCoordTag || freeOrbit) {
+      if (!showEquations || !stage.showCoordTag || freeOrbit) {
         coordTag.classList.remove('visible');
         return;
       }
@@ -1081,6 +1117,8 @@
     // Support direct step jumping via URL (?step=0..6)
     const urlParams = new URLSearchParams(window.location.search);
     const initialStep = Math.min(Math.max(parseInt(urlParams.get('step') || '0'), 0), 6);
+    const initialMath = (urlParams.get('equations') === 'true' || urlParams.get('math') === 'true');
+    setEquationsVisible(initialMath); // Default is false!
 
     applyStage(initialStep, false);
     renderLoop();
